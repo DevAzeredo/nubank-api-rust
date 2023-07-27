@@ -1,5 +1,5 @@
-# integracao_nubank
-Objetivo principal dessa integração é criar cobrança PIX e validar se foi ou não pago, foi utilizado o framework Actix-web e SurrealDB.
+# nubank-api-rust
+Objetivo principal dessa API é criar cobrança PIX e validar se foi ou não pago, foi utilizado o framework Actix-web e SurrealDB.
 
 Endpoints:
 1 - Solicitar código do certificado - /certificate/create
