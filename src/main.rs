@@ -1,35 +1,14 @@
-mod cert {
-    pub mod certificate;
-    pub mod certificate_dao;
-}
-mod endpoints {
-    pub mod nucreatecertificate;
-    pub mod nupayment;
-    pub mod nusavecertificate;
-    pub mod nupixdetails;
-}
-mod nubank {
-    pub mod nubank;
-    pub mod nubank_dao;
-}
-mod payment {
-    pub mod payment;
-    pub mod payment_dao;
-}
-
-use crate::discover::Discovery;
-use actix_web::{web::Data, App, HttpServer};
-use endpoints::{
-    nucreatecertificate::create_certificate, nupayment::nubank_payment_request,
-    nusavecertificate::save_certificate, nupixdetails::nubank_payment_details,
-};
-use env_logger;
+mod api_nubank;
+use actix_web::web::Data;
+use actix_web::{App, HttpServer};
 use reqwest::header::{HeaderValue, ACCEPT, CONTENT_TYPE, USER_AGENT};
-use surrealdb::{engine::any::Any, Surreal};
-mod discover;
-mod payload;
-mod queries;
+use surrealdb::engine::any::Any;
+use surrealdb::Surreal;
 
+use crate::api_nubank::{
+    create_certificate, discover::Discovery, nubank_payment_details, nubank_payment_request,
+    save_certificate,
+};
 lazy_static::lazy_static! {
     static ref REQUEST_HEADERS:reqwest::header::HeaderMap = create_headers();
 }

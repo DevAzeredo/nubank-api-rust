@@ -1,11 +1,13 @@
-use actix_web::{web::{self, Data}, HttpResponse, Responder};
+use actix_web::{
+    web::{self, Data},
+    HttpResponse, Responder,
+};
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    cert::{certificate::Certificate, certificate_dao},
-    nubank::{nubank::Nubank, nubank_dao}, discover::Discovery,
-};
+use crate::api_nubank::{cert::{certificate::Certificate, certificate_dao}, nubank::{nubank::Nubank, nubank_dao}, discover::Discovery};
+
+
 #[derive(Debug, Deserialize)]
 struct CertificateRequest {
     login: String,
@@ -18,7 +20,10 @@ struct CertificateResponse {
 }
 
 #[actix_web::post("/certificate/create")]
-async fn create_certificate(request: web::Json<CertificateRequest>, disc: Data<Discovery>) -> impl Responder {
+async fn create_certificate(
+    request: web::Json<CertificateRequest>,
+    disc: Data<Discovery>,
+) -> impl Responder {
     let mut certificate = Certificate::new();
     let nu = Nubank::new(
         request.login.clone(),

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::cert::certificate::Certificate;
+use crate::api_nubank::cert::certificate::Certificate;
 
 pub fn get_auth_cert(login: String, password: String) -> HashMap<String, String> {
     let mut payload: HashMap<String, String> = HashMap::new();

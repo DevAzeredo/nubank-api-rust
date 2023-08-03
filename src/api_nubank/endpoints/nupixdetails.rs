@@ -1,6 +1,7 @@
-use crate::{discover::Discovery, nubank::nubank_dao};
 use actix_web::{web, HttpResponse, Responder};
 use serde::Deserialize;
+
+use crate::api_nubank::{discover::Discovery, nubank::nubank_dao};
 
 #[derive(Debug, Deserialize)]
 struct PaymentDetailsPayload {

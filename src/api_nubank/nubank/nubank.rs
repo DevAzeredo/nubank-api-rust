@@ -1,15 +1,11 @@
 use std::error::Error;
-use crate::{
-    cert::certificate_dao,
-    payload,
-    payment::{payment::PaymentResponsePayload, payment_dao},
-    queries::{self, feed_items_query, get_create_pix_qr_code},
-    REQUEST_HEADERS,
-};
+
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use reqwest::{header::AUTHORIZATION, Client, ClientBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+
+use crate::{REQUEST_HEADERS, api_nubank::{payload, payment::{payment::PaymentResponsePayload, payment_dao}, queries::{self, get_create_pix_qr_code, feed_items_query}, cert::certificate_dao}};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Nubank {

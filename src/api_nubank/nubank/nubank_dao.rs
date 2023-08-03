@@ -1,4 +1,4 @@
-use crate::{ DB};
+use crate::DB;
 
 use super::nubank::Nubank;
 pub async fn create(nu: Nubank) {

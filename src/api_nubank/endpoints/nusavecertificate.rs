@@ -1,7 +1,8 @@
 use actix_web::{web, HttpResponse, Responder};
 use serde::Deserialize;
 
-use crate::{cert::certificate_dao, discover::Discovery, nubank::nubank_dao};
+use crate::api_nubank::{discover::Discovery, cert::certificate_dao, nubank::nubank_dao};
+
 
 #[derive(Debug, Deserialize)]
 struct CodeCertificateRequest {

@@ -1,4 +1,5 @@
-use crate::{create_headers, payload, REQUEST_HEADERS};
+use crate::api_nubank::payload;
+use crate::{create_headers, REQUEST_HEADERS};
 use log::error;
 use openssl::error::ErrorStack as OpenSSLStackError;
 use openssl::pkcs12::Pkcs12;
