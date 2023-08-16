@@ -1,7 +1,10 @@
+use serde_json::Error;
+
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct PaymentResponsePayload {
+pub struct Payment {
     pub id: String,
     pub amount: f32,
     pub message: Option<String>,
@@ -13,9 +16,9 @@ pub struct PaymentResponsePayload {
     pub brcode: String,
 }
 
-impl PaymentResponsePayload {
-   pub fn new(message: String) -> Self {
-    PaymentResponsePayload {
+impl Payment {
+    pub fn new(message: String) -> Self {
+        Payment {
             amount: 0.0,
             id: "".to_string(),
             message: Some(message),
@@ -26,3 +29,12 @@ impl PaymentResponsePayload {
         }
     }
 }
+
+pub fn render_payment_response(payment_json: Value) -> Result<Payment, Error> {
+    let payment_response = match serde_json::from_value::<Payment>(payment_json.clone()) {
+        Ok(response) => response,
+        Err(error) => return Err(error),
+    };
+    Ok(payment_response)
+}
+

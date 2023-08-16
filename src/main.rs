@@ -1,13 +1,14 @@
 mod api_nubank;
 use actix_web::web::Data;
 use actix_web::{App, HttpServer};
+use api_nubank::controller::certificate_controller::create_certificate;
+use api_nubank::controller::nubank_controller::{nubank_payment_request, payment_details, payment_request};
 use reqwest::header::{HeaderValue, ACCEPT, CONTENT_TYPE, USER_AGENT};
 use surrealdb::engine::any::Any;
 use surrealdb::Surreal;
 
 use crate::api_nubank::{
-    create_certificate, discover::Discovery, nubank_payment_details, nubank_payment_request,
-    save_certificate,
+    create_certificate, discover::Discovery, nubank_payment_details, save_certificate,
 };
 lazy_static::lazy_static! {
     static ref REQUEST_HEADERS:reqwest::header::HeaderMap = create_headers();
@@ -36,8 +37,8 @@ async fn main() -> std::io::Result<()> {
             .app_data(Data::new(discovery.clone()))
             .service(create_certificate)
             .service(save_certificate)
-            .service(nubank_payment_request)
-            .service(nubank_payment_details)
+            .service(payment_request)
+            .service(payment_details)
     })
     .bind("127.0.0.1:8080")?
     .run()

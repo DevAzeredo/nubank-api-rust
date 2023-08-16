@@ -178,19 +178,7 @@ impl Discovery {
         self.proxy_list_url = Self::get_proxy_urls(&self.client).await.unwrap();
         self.proxy_list_app_url = Self::get_app_proxy_urls(&self.client).await.unwrap();
     }
-    pub async fn salvar_url_ghost_flame(&self, ghost_flame_url: String) {
-        let _update: Url = DB
-            .update(("url", "ghost_flame_url"))
-            .content(Url {
-                link: ghost_flame_url,
-            })
-            .await
-            .unwrap();
-    }
-    pub async fn get_url_ghost_flame(&self) -> core::result::Result<String, Box<dyn Error>> {
-        let ghost_flame: Url = DB.select(("url", "ghost_flame_url")).await?;
-        Ok(ghost_flame.link)
-    }
+
     pub async fn get_proxy_urls(client: &reqwest::Client) -> Result<Links> {
         let response = client.get(DISCOVERY_URL).send().await?;
         let body = response.text().await?;
@@ -203,4 +191,17 @@ impl Discovery {
         let res: LinksAPP = serde_json::from_str(&body).unwrap();
         Ok(res)
     }
+}
+pub async fn salvar_url_ghost_flame(ghost_flame_url: String) {
+    let _update: Url = DB
+        .update(("url", "ghost_flame_url"))
+        .content(Url {
+            link: ghost_flame_url,
+        })
+        .await
+        .unwrap();
+}
+pub async fn get_url_ghost_flame() -> core::result::Result<String, Box<dyn Error>> {
+    let ghost_flame: Url = DB.select(("url", "ghost_flame_url")).await?;
+    Ok(ghost_flame.link)
 }

@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use crate::api_nubank::cert::certificate::Certificate;
-
 pub fn get_auth_cert(login: String, password: String) -> HashMap<String, String> {
     let mut payload: HashMap<String, String> = HashMap::new();
     payload.insert("grant_type".to_string(), "password".to_string());
@@ -19,18 +17,19 @@ pub fn get_create_cert(
     login: String,
     password: String,
     device_id: String,
-    certificate: &mut Certificate,
+    public_key: String,
+    publick_crypto: String,
 ) -> HashMap<String, String> {
     let mut payload = HashMap::new();
     payload.insert("login".to_string(), login.clone());
     payload.insert("password".to_string(), password.clone());
     payload.insert(
         "public_key".to_string(),
-        Certificate::get_public_key(&certificate.key1).unwrap(),
+        public_key,
     );
     payload.insert(
         "public_key_crypto".to_string(),
-        Certificate::get_public_key(&certificate.key2).unwrap(),
+        publick_crypto,
     );
     payload.insert(
         "model".to_string(),

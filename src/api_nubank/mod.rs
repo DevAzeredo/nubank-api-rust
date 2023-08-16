@@ -1,12 +1,13 @@
-pub mod cert;
-pub mod endpoints;
-pub mod nubank;
-pub mod payment;
-pub mod payload;
-pub mod queries;
+pub mod controller;
 pub mod discover;
+mod model;
+mod payload;
+mod queries;
+mod view;
 
-pub use endpoints::nucreatecertificate::create_certificate;
-pub use endpoints::nupayment::nubank_payment_request;
-pub use endpoints::nusavecertificate::save_certificate;
-pub use endpoints::nupixdetails::nubank_payment_details;
+pub use discover::get_url_ghost_flame;
+pub use discover::salvar_url_ghost_flame;
+pub use model::model_dao::nubank_dao;
+pub use model::nubank_model;
+pub use view::certificate_view;
+pub use view::nubank_view;
