@@ -7,6 +7,7 @@ use crate::api_nubank::controller::nubank_controller;
 use crate::api_nubank::discover::Discovery;
 use crate::api_nubank::model::certificate_model::{self, Certificate};
 use crate::api_nubank::model::model_dao::certificate_dao;
+use crate::api_nubank::nubank_dao;
 
 #[actix_web::post("/certificate/create")]
 async fn create_certificate(
@@ -48,7 +49,7 @@ async fn save_certificate(
     request: web::Json<CodeCertificateRequest>,
     disc: web::Data<Discovery>,
 ) -> impl Responder {
-    let mut certificate = certificate_dao::get(request.login.clone()).await;
+    let certificate = certificate_dao::get(request.login.clone()).await;
     let nubank = nubank_controller::get(request.login.clone()).await;
     let code = request.code.clone();
     match certificate_model::exchange(
@@ -61,8 +62,8 @@ async fn save_certificate(
     )
     .await
     {
-        Ok(_result) => {
-            certificate_dao::update(certificate, nubank.login.clone()).await;
+        Ok(exchanged_certificate) => {
+            certificate_dao::update(exchanged_certificate, nubank.login.clone()).await;
             nubank_dao::update(nubank).await;
             HttpResponse::Ok().finish()
         }
@@ -71,5 +72,5 @@ async fn save_certificate(
 }
 
 pub async fn get_by_login(login: String) -> Certificate {
-    certificate_dao::get_by_login(login).await
+    certificate_dao::get(login).await
 }

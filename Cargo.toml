@@ -17,4 +17,5 @@ regex = "1.8.4"
 surrealdb = { version =  "1.0.0-beta.9", features = ["kv-rocksdb"] } 
 log = "0.4.19"
 env_logger = "0.10.0"
+anyhow = "1.0.75"
    

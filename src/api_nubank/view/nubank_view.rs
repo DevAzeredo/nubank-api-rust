@@ -16,20 +16,6 @@ pub struct Payment {
     pub brcode: String,
 }
 
-impl Payment {
-    pub fn new(message: String) -> Self {
-        Payment {
-            amount: 0.0,
-            id: "".to_string(),
-            message: Some(message),
-            brcode: "".to_string(),
-            pix_alias: "".to_string(),
-            transaction_id: "".to_string(),
-            url: "".to_string(),
-        }
-    }
-}
-
 pub fn render_payment_response(payment_json: Value) -> Result<Payment, Error> {
     let payment_response = match serde_json::from_value::<Payment>(payment_json.clone()) {
         Ok(response) => response,

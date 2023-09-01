@@ -1,9 +1,8 @@
-use std::fmt::Error;
-
+use anyhow::{anyhow, Result};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use reqwest::{
     header::{HeaderMap, HeaderValue, AUTHORIZATION},
-    Client, ClientBuilder,
+    Method,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
@@ -14,10 +13,10 @@ use crate::{
         queries::{self, feed_items_query, get_create_pix_qr_code},
         salvar_url_ghost_flame,
     },
-    REQUEST_HEADERS,
+    send_request, REQUEST_HEADERS,
 };
 
-use super::model_dao::{nubank_dao, certificate_controller};
+use super::model_dao::nubank_dao;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Nubank {
@@ -46,19 +45,26 @@ impl Nubank {
             account_id: "".to_string(),
         }
     }
-    pub async fn authenticate_with_certificate(&mut self, url: String) -> Result<String, Error> {
+    pub async fn authenticate_with_certificate(
+        &mut self,
+        url: String,
+    ) -> Result<String, anyhow::Error> {
         let client = get_client_with_identity(self.login.clone(), None).await?;
 
         let payload = payload::get_auth_cert(self.login.clone(), self.password.clone());
 
-        let json_value = match client.post(url).json(&payload).send().await {
+        let json_value: Value = match send_request(Method::POST, url, &payload).await {
             Ok(response) => {
                 let json_string = response.text().await.unwrap_or("".to_string());
                 serde_json::from_str(&json_string).unwrap_or_default()
             }
-            Err(_) => serde_json::Value::default(),
+            Err(err) => {
+                return Err(anyhow!(
+                    "Response error during authenticate certificate {:?}",
+                    err
+                ));
+            }
         };
-
         let (access_token, refresh_token, ghostflame_href) = (
             json_value["access_token"].as_str(),
             json_value["refresh_token"].as_str(),
@@ -72,11 +78,11 @@ impl Nubank {
             self.refresh_token = refresh_token_href.to_string();
             Ok(ghostflame_href.to_string())
         } else {
-            Err(Error::default())
+            Err(anyhow!("Fail during Authentication with certificate"))
         }
     }
 
-    pub async fn get_pix_keys(&mut self, url: String) -> Result<bool, Error> {
+    pub async fn get_pix_keys(&mut self, url: String) -> Result<bool, anyhow::Error> {
         let token = format!("Bearer {}", self.access_token.clone());
         let client = get_client_with_identity(self.login.clone(), Some(&token)).await?;
 
@@ -111,9 +117,9 @@ impl Nubank {
         &mut self,
         id: String,
         url: String,
-    ) -> Result<String, Error> {
-        let token = format!("Bearer {}", self.access_token.clone());
-        let client = get_client_with_identity(self.login.clone(), Some(&token)).await?;
+    ) -> Result<String, anyhow::Error> {
+        let client =
+            get_client_with_identity(self.login.clone(), Some(&self.access_token.clone())).await?;
         let payload = &feed_items_query("");
 
         let res = match client.post(url).json(&payload).send().await {
@@ -127,7 +133,7 @@ impl Nubank {
         if let Some(node) = find_node_by_id(&res, &id) {
             Ok(json!(node).to_string())
         } else {
-            return Err(Error::default());
+            return Err(anyhow!("Error to find node"));
         }
     }
 }
@@ -146,7 +152,7 @@ pub async fn create_pix_qr_code(
     login: String,
     amount: f32,
     url: String,
-) -> Result<Value, Box<dyn std::error::Error>> {
+) -> Result<Value, anyhow::Error> {
     let mut nu = nubank_dao::get(login.clone()).await;
     let ghost = nu.authenticate_with_certificate(url.clone()).await?;
 
@@ -160,8 +166,7 @@ pub async fn create_pix_qr_code(
         nu.account_id.clone(),
         generate_transaction_id(),
     );
-    let token = format!("Bearer {}", nu.access_token.clone());
-    let response = get_client_with_identity(login, Some(&token))
+    let response = get_client_with_identity(login, Some(&nu.access_token.clone()))
         .await?
         .post(url)
         .json(payload)
@@ -176,37 +181,12 @@ pub async fn create_pix_qr_code(
     Ok(res["data"]["createPaymentRequest"]["paymentRequest"].clone())
 }
 
-async fn get_client_with_identity(login: String, token: Option<&str>) -> Result<Client, Error> {
-
-    let certificate = certificate_controller::get_by_login(login.clone()).await;
-    let cert_clone = &certificate.cert1.clone();
-    let cert1 = match cert_clone {
-        Some(certificate1) => certificate1,
-        None => return Err(std::fmt::Error::default()),
-    };
-
-    let identity = match reqwest::Identity::from_pkcs12_der(cert1, "NuRust") {
-        Ok(identity) => identity,
-        Err(error) => return Err(std::fmt::Error::default()),
-    };
-
-    let client = match ClientBuilder::new()
-        .default_headers(create_headers(token.unwrap_or(&"".to_string()))?)
-        .identity(identity)
-        .build()
-    {
-        Ok(it) => it,
-        Err(err) => return Err(std::fmt::Error::default()),
-    };
-    Ok(client)
-}
-
-fn create_headers(token: &str) -> Result<HeaderMap, Error> {
+fn create_headers(token: &str) -> Result<HeaderMap, anyhow::Error> {
     let mut res = REQUEST_HEADERS.clone();
     if !token.is_empty() {
-        let authorization_value = match HeaderValue::from_str(token) {
+        let authorization_value = match HeaderValue::from_str(&format!("Bearer {}", token)) {
             Ok(it) => it,
-            Err(err) => return Err(std::fmt::Error::default()),
+            Err(err) => return Err(anyhow!("Error to fcreate headers {:?}", err)),
         };
         res.insert(AUTHORIZATION, authorization_value);
     }

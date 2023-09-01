@@ -2,7 +2,6 @@ use actix_web::{web, HttpResponse, Responder};
 use serde::Deserialize;
 
 use crate::api_nubank::{
-    discover::Discovery,
     get_url_ghost_flame, nubank_dao,
     nubank_model::{self, Nubank},
     nubank_view,
@@ -15,8 +14,7 @@ struct PaymentCreatePayload {
 }
 #[actix_web::post("/payment/create")]
 async fn payment_request(
-    request: web::Json<PaymentCreatePayload>,
-    disc: web::Data<Discovery>,
+    request: web::Json<PaymentCreatePayload>
 ) -> impl Responder {
     let payment = match nubank_model::create_pix_qr_code(
         request.login.clone(),
@@ -49,7 +47,6 @@ struct PaymentDetailsPayload {
 #[actix_web::get("/payment/details")]
 async fn payment_details(
     request: web::Json<PaymentDetailsPayload>,
-    disc: web::Data<Discovery>,
 ) -> impl Responder {
     let mut nu = nubank_dao::get(request.login.clone()).await;
     let url = get_url_ghost_flame().await.unwrap_or("".to_string());

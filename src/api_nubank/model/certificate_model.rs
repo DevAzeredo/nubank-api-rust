@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result};
 use openssl::error::ErrorStack as OpenSSLStackError;
 use openssl::pkcs12::Pkcs12;
 use openssl::{
@@ -8,11 +9,12 @@ use openssl::{
 use regex::Regex;
 use reqwest::{Client, Method};
 use serde::{Deserialize, Serialize};
-use std::fmt::Error;
+use std::collections::HashMap;
 
+use crate::send_request;
 use crate::{
     api_nubank::{model::model_dao::certificate_dao, payload},
-    create_headers, REQUEST_HEADERS,
+    REQUEST_HEADERS,
 };
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -28,14 +30,23 @@ pub struct Certificate {
         serialize_with = "serialize_private_key",
         deserialize_with = "deserialize_private_key"
     )]
-    pub key1: PKey<Private>,
+    pub key: PKey<Private>,
     #[serde(
         serialize_with = "serialize_private_key",
         deserialize_with = "deserialize_private_key"
     )]
-    pub key2: PKey<Private>,
-    pub cert1: Option<Vec<u8>>,
-    pub cert2: Option<Vec<u8>>,
+    pub crypto_key: PKey<Private>,
+    pub certificate_key: Option<Vec<u8>>,
+    pub certificate_crypto: Option<Vec<u8>>,
+}
+pub async fn get_public_keys(
+    private_key: &PKey<Private>,
+    private_crypto: &PKey<Private>,
+) -> Result<(String, String), OpenSSLStackError> {
+    let public_key = get_public_key(&private_key)?;
+    let public_crypto = get_public_key(&private_crypto)?;
+
+    Ok((public_key, public_crypto))
 }
 
 pub async fn request_code_email(
@@ -43,15 +54,9 @@ pub async fn request_code_email(
     password: String,
     device_id: String,
     url: String,
-) -> Result<String, Error> {
+) -> Result<String, anyhow::Error> {
     let mut cert = Certificate::new();
-    let (public_key, public_crypto) = match (get_public_key(&cert.key1), get_public_key(&cert.key2))
-    {
-        (Ok(public), Ok(crypto)) => (public, crypto),
-        _ => {
-            return Err(Error::default());
-        }
-    };
+    let (public_key, public_crypto) = get_public_keys(&cert.key, &cert.crypto_key).await?;
 
     let payload = payload::get_create_cert(
         login.clone(),
@@ -60,35 +65,32 @@ pub async fn request_code_email(
         public_key,
         public_crypto,
     );
-    let response = match Client::new()
-        .request(Method::POST, url)
-        .headers(REQUEST_HEADERS.clone())
-        .json(&payload)
-        .send()
-        .await
-    {
+    let response = match send_request(Method::POST, url, &payload).await {
         Ok(res) => res,
         Err(err) => {
-            return Err(Error::default());
+            return Err(anyhow!("Response error during request code email {:?}", err));
         }
     };
-    match response.headers().get("www-authenticate") {
-        Some(header_value) => {
-            let header_str = header_value.to_str().unwrap_or_default();
-            if !header_str.is_empty() {
-                let email = match extract_sent_to(header_str).ok_or("Error extracting email") {
-                    Ok(it) => it,
-                    Err(err) => return Err(Error::default()),
-                };
-                cert.encrypted_code = extract_device_authorization_code(header_str).unwrap();
-                certificate_dao::create(cert, login).await;
-                return Ok(email);
-            } else {
-                return Err(Error::default());
-            }
-        }
-        None => return Err(Error::default()),
+
+    let header_str = response
+        .headers()
+        .get("www-authenticate")
+        .ok_or_else(|| anyhow!("No 'www-authenticate' header"))?
+        .to_str()
+        .map_err(|_| anyhow!("Error parsing header value"))?;
+
+    if header_str.is_empty() {
+        return Err(anyhow!("Empty header value"));
     }
+
+    let email = extract_sent_to(header_str).ok_or_else(|| anyhow!("Error extracting email"))?;
+
+    cert.encrypted_code = extract_device_authorization_code(header_str)
+        .ok_or_else(|| anyhow!("Error extracting device authorization code"))?;
+
+    certificate_dao::create(cert, login).await;
+
+    Ok(email)
 }
 pub async fn exchange(
     mut cert: Certificate,
@@ -97,86 +99,86 @@ pub async fn exchange(
     password: String,
     device_id: String,
     url: String,
-) -> Result<String, Error> {
+) -> Result<Certificate, anyhow::Error> {
     if cert.encrypted_code.is_empty() {
-        return Err(Error::default());
+        return Err(anyhow!("Encrypted code not found"));
     }
 
-    let (public_key, public_crypto) = match (get_public_key(&cert.key1), get_public_key(&cert.key2))
-    {
-        (Ok(public), Ok(crypto)) => (public, crypto),
-        _ => {
-            return Err(Error::default());
-        }
-    };
+    let (public_key, public_crypto) =
+        match (get_public_key(&cert.key), get_public_key(&cert.crypto_key)) {
+            (Ok(public), Ok(crypto)) => (public, crypto),
+            error => {
+                return Err(anyhow!("Fail to get public key {:?}", error));
+            }
+        };
 
     let mut payload =
         payload::get_create_cert(login, password, device_id, public_key, public_crypto);
     payload.insert("code".to_owned(), code.to_string());
     payload.insert("encrypted-code".to_owned(), cert.encrypted_code.clone());
-    let header = create_headers();
 
-    let response = match Client::new()
-        .post(url)
-        .headers(header)
-        .json(&payload)
-        .send()
-        .await
-    {
+    let response = match send_request(Method::POST, url, &payload).await {
         Ok(res) => res,
-        Err(err) => {
-            return Err(Error::default());
+        Err(_err) => {
+            return Err(anyhow!("Response error during exchange certificate"));
         }
     };
 
     let data: CertificateCrypto = match response.json().await {
         Ok(result) => result,
         Err(error) => {
-            return Err(Error::default());
-        }
-    };
-    let (cert1, cert2) = match (
-        Ok(parse_cert(&data.certificate)),
-        Ok(parse_cert(&data.certificate_crypto)),
-    ) { PAREI AQUI TEM QUE DAR UMA ANALSIADA
-        (Ok(cert1), Ok(cert2)) => (cert1, cert2),
-        _ => {
-            return Err(Error::default());
+            return Err(anyhow!("Certificate Crypto Error {:?}", error));
         }
     };
 
-    let pkcs12_1 = match gen_cert(&cert.key1, &cert1) {
+    (cert.certificate_key, cert.certificate_crypto) =
+        gen_certificates(&cert.key, &cert.crypto_key, data).await?;
+
+    Ok(cert)
+}
+
+pub async fn gen_certificates(
+    key: &PKey<Private>,
+    crypto_key: &PKey<Private>,
+    data: CertificateCrypto,
+) -> Result<(Option<Vec<u8>>, Option<Vec<u8>>), anyhow::Error> {
+    let (key_x, crypto_x) = match (
+        parse_cert(&data.certificate),
+        parse_cert(&data.certificate_crypto),
+    ) {
+        (Ok(certificate1), Ok(certificate2)) => (certificate1, certificate2),
+        error => {
+            return Err(anyhow!("Error during parse certificate {:?}", error));
+        }
+    };
+    let key_pkcs12 = match gen_cert(&key, &key_x) {
         Ok(result) => result,
-        Err(_error) => {
-            return Err(Error::default());
+        Err(error) => {
+            return Err(anyhow!("Fail to generate key pkcs {:?}", error));
         }
     };
 
-    let pkcs12_2 = match gen_cert(&cert.key2, &cert2) {
+    let crypto_pkcs12 = match gen_cert(&crypto_key, &crypto_x) {
         Ok(result) => result,
-        Err(_error) => {
-            return Err(Error::default());
+        Err(error) => {
+            return Err(anyhow!("Fail to generate crypto pkcs {:?}", error));
         }
     };
 
-    match pkcs12_1.to_der() {
-        Ok(der_data) => {
-            cert.cert1 = Some(der_data);
+    let cetificate_key = match key_pkcs12.to_der() {
+        Ok(der_data) => der_data,
+        Err(error) => {
+            return Err(anyhow!("Fail to generate key certificate{:?}", error));
         }
-        Err(_error) => {
-            return Err(Error::default());
+    };
+    let certificate_crypto = match crypto_pkcs12.to_der() {
+        Ok(der_data) => der_data,
+        Err(error) => {
+            return Err(anyhow!("Fail to generate crypto certificate {:?}", error));
         }
-    }
-    match pkcs12_2.to_der() {
-        Ok(der_data) => {
-            cert.cert2 = Some(der_data);
-        }
-        Err(_error) => {
-            return Err(Error::default());
-        }
-    }
-    let res = String::from("Certificates successfully exchanged!");
-    Ok(res)
+    };
+
+    Ok((Some(cetificate_key), Some(certificate_crypto)))
 }
 
 impl Default for Certificate {
@@ -187,16 +189,16 @@ impl Default for Certificate {
 
 impl Certificate {
     pub fn new() -> Certificate {
-        let key1: PKey<Private> = generate_key().unwrap();
-        let key2 = generate_key().unwrap();
+        let key: PKey<Private> = generate_key().unwrap();
+        let crypto_key = generate_key().unwrap();
         let encrypted_code = "".to_string();
 
         Certificate {
             encrypted_code,
-            key1,
-            key2,
-            cert1: None,
-            cert2: None,
+            key,
+            crypto_key,
+            certificate_key: None,
+            certificate_crypto: None,
         }
     }
 }
@@ -215,11 +217,23 @@ fn gen_cert(key: &PKey<Private>, cert: &X509) -> Result<Pkcs12, OpenSSLStackErro
 
     Ok(p12)
 }
-pub fn get_public_key(private_key: &PKey<Private>) -> Result<String, Box<dyn std::error::Error>> {
+pub fn get_public_key(private_key: &PKey<Private>) -> Result<String, OpenSSLStackError> {
     let rsa = private_key.rsa()?;
     let public_key = PKey::from_rsa(rsa)?;
-    let public_key_pem = public_key.public_key_to_pem()?;
-    let public_key_str = String::from_utf8(public_key_pem)?;
+
+    let public_key_pem = match public_key.public_key_to_pem() {
+        Ok(pem) => pem,
+        Err(_) => {
+            return Err(OpenSSLStackError::get());
+        }
+    };
+
+    let public_key_str = match String::from_utf8(public_key_pem) {
+        Ok(str) => str,
+        Err(_) => {
+            return Err(OpenSSLStackError::get());
+        }
+    };
 
     Ok(public_key_str)
 }
