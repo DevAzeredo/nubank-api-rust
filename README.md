@@ -1,3 +1,7 @@
+TO COM UM PROBLEMA DE SESSION TALVEZ, nao identifiquei ainda, alguma coisa com context? enviar o certificado pelo session, pkcs12 https, 
+
+
+
 # nubank-api-rust
 Objetivo principal dessa API é criar cobrança PIX e validar se foi ou não pago, foi utilizado o framework Actix-web e SurrealDB.
 
